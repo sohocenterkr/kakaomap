@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>매장 위치 지도</title>
-    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=819fdc80994338967b0271d7a2c23fa1&libraries=services"></script>
+    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=819fdc80994338967b0271d7a2c23fa1&libraries=services" charset="utf-8"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
         * {
@@ -107,19 +107,22 @@
         let geocoder;
         
         // 페이지 로드 시 지도 초기화
-        window.onload = function() {
-            // kakao 객체가 로드되었는지 확인
-            if (typeof kakao === 'undefined') {
-                alert('카카오맵 API 로드에 실패했습니다. 페이지를 새로고침 해주세요.');
-                return;
-            }
-            
-            // kakao.maps API가 준비되면 초기화
-            kakao.maps.load(function() {
-                initMap();
-                document.getElementById('load-map').addEventListener('click', processCSV);
-            });
-        };
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                try {
+                    if (typeof kakao === 'undefined' || typeof kakao.maps === 'undefined') {
+                        alert('카카오맵 API 로드에 실패했습니다. 페이지를 새로고침 해주세요.');
+                        return;
+                    }
+                    
+                    initMap();
+                    document.getElementById('load-map').addEventListener('click', processCSV);
+                } catch (e) {
+                    console.error('카카오맵 초기화 오류:', e);
+                    alert('카카오맵 초기화 중 오류가 발생했습니다: ' + e.message);
+                }
+            }, 1000); // API가 완전히 로드될 시간을 주기 위해 약간의 지연 추가
+        });
         
         // 지도 초기화
         function initMap() {
