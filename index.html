@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>매장 위치 지도</title>
+    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=819fdc80994338967b0271d7a2c23fa1&libraries=services"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+        }
+        body {
+            padding: 10px;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        h1 {
+            font-size: 20px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        #map {
+            width: 100%;
+            height: 60vh;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .controls {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border-radius: 8px;
+        }
+        .file-input {
+            width: 100%;
+            padding: 10px 0;
+        }
+        button {
+            background-color: #FEE500;
+            color: #000;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            width: 100%;
+            cursor: pointer;
+        }
+        button:active {
+            background-color: #E6CF00;
+        }
+        .store-list {
+            margin-top: 20px;
+            height: 30vh;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+        }
+        .store-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+        .store-item:last-child {
+            border-bottom: none;
+        }
+        .store-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .store-address {
+            font-size: 14px;
+            color: #666;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>매장 위치 지도</h1>
+    
+    <div class="controls">
+        <input type="file" id="csv-file" class="file-input" accept=".csv">
+        <button id="load-map">지도에 표시하기</button>
+    </div>
+    
+    <div id="map"></div>
+    
+    <div class="loading" id="loading">처리 중...</div>
+    
+    <div class="store-list" id="store-list">
+        <p style="text-align: center; padding: 20px;">CSV 파일을 업로드하세요</p>
+    </div>
+
+    <script>
+        // 전역 변수
+        let map;
+        let markers = [];
+        let stores = [];
+        let geocoder;
+        
+        // 페이지 로드 시 지도 초기화
+        window.onload = function() {
+            // kakao 객체가 로드되었는지 확인
+            if (typeof kakao === 'undefined') {
+                alert('카카오맵 API 로드에 실패했습니다. 페이지를 새로고침 해주세요.');
+                return;
+            }
+            
+            // kakao.maps API가 준비되면 초기화
+            kakao.maps.load(function() {
+                initMap();
+                document.getElementById('load-map').addEventListener('click', processCSV);
+            });
+        };
+        
+        // 지도 초기화
+        function initMap() {
+            const container = document.getElementById('map');
+            const options = {
+                center: new kakao.maps.LatLng(37.5665, 126.9780), // 서울 중심
+                level: 8
+            };
+            
+            map = new kakao.maps.Map(container, options);
+            geocoder = new kakao.maps.services.Geocoder();
+        }
+        
+        // CSV 파일 처리
+        function processCSV() {
+            const fileInput = document.getElementById('csv-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('CSV 파일을 선택해주세요.');
+                return;
+            }
+            
+            // 로딩 표시
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('store-list').innerHTML = '';
+            
+            // 기존 마커 제거
+            clearMarkers();
+            
+            // CSV 파싱
+            Papa.parse(file, {
+                header: true,
+                complete: function(results) {
+                    stores = results.data;
+                    processStores();
+                },
+                error: function(error) {
+                    alert('CSV 파일 처리 중 오류가 발생했습니다: ' + error);
+                    document.getElementById('loading').style.display = 'none';
+                }
+            });
+        }
+        
+        // 매장 데이터 처리
+        function processStores() {
+            if (stores.length === 0) {
+                alert('데이터가 없습니다.');
+                document.getElementById('loading').style.display = 'none';
+                return;
+            }
+            
+            // 첫 번째 행의 키를 확인하여 주소와 이름 필드 추측
+            const firstRow = stores[0];
+            const keys = Object.keys(firstRow);
+            
+            let nameField = '';
+            let addressField = '';
+            
+            // 필드명 추측
+            for (const key of keys) {
+                if (key.includes('이름') || key.includes('name') || key.includes('상호')) {
+                    nameField = key;
+                }
+                if (key.includes('주소') || key.includes('address')) {
+                    addressField = key;
+                }
+            }
+            
+            // 필드를 찾지 못했다면 첫 번째와 두 번째 필드를 사용
+            if (!nameField && keys.length > 0) {
+                nameField = keys[0];
+            }
+            if (!addressField && keys.length > 1) {
+                addressField = keys[1];
+            }
+            
+            // 스토어 목록 생성
+            let storeListHTML = '';
+            
+            // 비동기 주소 처리를 위한 카운터
+            let geocodedCount = 0;
+            
+            stores.forEach((store, index) => {
+                if (!store[nameField] || !store[addressField]) return;
+                
+                const name = store[nameField];
+                const address = store[addressField];
+                
+                storeListHTML += `
+                    <div class="store-item" data-index="${index}">
+                        <div class="store-name">${name}</div>
+                        <div class="store-address">${address}</div>
+                    </div>
+                `;
+                
+                // 주소를 좌표로 변환
+                geocoder.addressSearch(address, function(result, status) {
+                    geocodedCount++;
+                    
+                    if (status === kakao.maps.services.Status.OK) {
+                        const coords = new kakao.maps.LatLng(result[0].y, result[0].x);
+                        
+                        // 마커 생성
+                        const marker = new kakao.maps.Marker({
+                            map: map,
+                            position: coords
+                        });
+                        
+                        // 정보창 생성
+                        const infowindow = new kakao.maps.InfoWindow({
+                            content: `<div style="padding:5px;font-size:12px;width:150px;">${name}</div>`
+                        });
+                        
+                        // 마커 클릭 이벤트
+                        kakao.maps.event.addListener(marker, 'click', function() {
+                            infowindow.open(map, marker);
+                        });
+                        
+                        // 마커 저장
+                        markers.push({
+                            marker: marker,
+                            infowindow: infowindow,
+                            coords: coords,
+                            index: index
+                        });
+                        
+                        // 첫 번째 마커로 지도 중심 이동
+                        if (markers.length === 1) {
+                            map.setCenter(coords);
+                        }
+                    }
+                    
+                    // 모든 주소 처리가 완료되면 로딩 숨김
+                    if (geocodedCount >= stores.length) {
+                        document.getElementById('loading').style.display = 'none';
+                        
+                        // 모든 마커가 보이도록 지도 범위 설정
+                        if (markers.length > 0) {
+                            setBounds();
+                        }
+                    }
+                });
+            });
+            
+            // 스토어 목록 업데이트
+            const storeListElement = document.getElementById('store-list');
+            storeListElement.innerHTML = storeListHTML;
+            
+            // 스토어 목록 아이템 클릭 이벤트
+            const storeItems = document.querySelectorAll('.store-item');
+            storeItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    const index = parseInt(this.dataset.index);
+                    const markerInfo = markers.find(m => m.index === index);
+                    
+                    if (markerInfo) {
+                        map.setCenter(markerInfo.coords);
+                        map.setLevel(3);
+                        markerInfo.infowindow.open(map, markerInfo.marker);
+                    }
+                });
+            });
+        }
+        
+        // 마커 모두 제거
+        function clearMarkers() {
+            markers.forEach(markerInfo => {
+                markerInfo.marker.setMap(null);
+            });
+            markers = [];
+        }
+        
+        // 모든 마커가 보이도록 지도 범위 설정
+        function setBounds() {
+            const bounds = new kakao.maps.LatLngBounds();
+            
+            markers.forEach(markerInfo => {
+                bounds.extend(markerInfo.coords);
+            });
+            
+            map.setBounds(bounds);
+        }
+    </script>
+</body>
+</html>
