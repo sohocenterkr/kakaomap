@@ -240,26 +240,16 @@
             
             console.log('이름 필드:', nameField, '주소 필드:', addressField, '위도 필드:', latField, '경도 필드:', lngField);
             
-            // 특수 필드 처리 - 필드명이 정확하게 '위도', '경도'가 아닌 경우를 위한 추가 검사
-            if (!latField) {
-                for (const key of keys) {
-                    // 대소문자 구분 없이 모든 가능한 변형 확인
-                    const keyUpper = key.toUpperCase();
-                    if (keyUpper === 'LATITUDE' || keyUpper === 'LAT' || keyUpper === 'Y' || keyUpper === 'WGS84_Y') {
-                        latField = key;
-                        console.log(`위도 필드 추가 감지: ${key}`);
-                        break;
-                    }
-                }
-            }
-            
-            if (!lngField) {
-                for (const key of keys) {
-                    const keyUpper = key.toUpperCase();
-                    if (keyUpper === 'LONGITUDE' || keyUpper === 'LNG' || keyUpper === 'LON' || keyUpper === 'X' || keyUpper === 'WGS84_X') {
-                        lngField = key;
-                        console.log(`경도 필드 추가 감지: ${key}`);
-                        break;
+            // 첫 번째 항목에 대한 자세한 로깅
+            if (stores.length > 0) {
+                console.log('첫 번째 항목 전체 데이터:', stores[0]);
+                
+                if (latField) {
+                    console.log(`위도 필드 '${latField}'의 값:`, stores[0][latField], '타입:', typeof stores[0][latField]);
+                } else {
+                    console.log('모든 필드 검사:');
+                    for (const key in stores[0]) {
+                        console.log(`${key}: ${stores[0][key]} (${typeof stores[0][key]})`);
                     }
                 }
             }
@@ -289,11 +279,26 @@
                     const latValue = store[latField];
                     const lngValue = store[lngField];
                     
-                    console.log(`좌표 확인 [${index}]: ${name}, 위도=${latValue}, 경도=${lngValue}`);
+                    console.log(`좌표 데이터 [${index}]: ${name}, 위도=${latValue} (${typeof latValue}), 경도=${lngValue} (${typeof lngValue})`);
                     
                     // 문자열이나 숫자로 된 좌표를 숫자로 변환
-                    const lat = parseFloat(String(latValue).replace(',', '.'));
-                    const lng = parseFloat(String(lngValue).replace(',', '.'));
+                    let lat = latValue;
+                    let lng = lngValue;
+                    
+                    // 문자열인 경우 변환
+                    if (typeof latValue === 'string') {
+                        lat = parseFloat(latValue.replace(',', '.'));
+                    } else if (typeof latValue === 'number') {
+                        lat = latValue;
+                    }
+                    
+                    if (typeof lngValue === 'string') {
+                        lng = parseFloat(lngValue.replace(',', '.'));
+                    } else if (typeof lngValue === 'number') {
+                        lng = lngValue;
+                    }
+                    
+                    console.log(`변환된 좌표 [${index}]: 위도=${lat}, 경도=${lng}`);
                     
                     if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
                         successCount++;
