@@ -27,6 +27,587 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            z-index: 5;
+        }
+        h1 {
+            font-size: 18px;
+            margin: 0;
+        }
+        .map-container {
+            position: relative;
+            flex: 1;
+            width: 100%;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        .menu-button {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .side-menu {
+            position: fixed;
+            top: 0;
+            left: -300px;
+            width: 300px;
+            height: 100%;
+            background-color: white;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            transition: left 0.3s ease;
+            z-index: 10;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .side-menu.open {
+            left: 0;
+        }
+        .close-menu {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        .menu-title {
+            font-size: 18px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .file-section {
+            margin-bottom: 20px;
+        }
+        .file-input {
+            width: 100%;
+            padding: 10px 0;
+        }
+        .upload-button {
+            background-color: #FEE500;
+            color: #000;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            width: 100%;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .upload-button:active {
+            background-color: #E6CF00;
+        }
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 5;
+            display: none;
+        }
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px 40px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            z-index: 20;
+            display: none;
+        }
+        .location-button {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background-color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 2;
+            cursor: pointer;
+            border: none;
+            font-size: 18px;
+        }
+        .location-button:active {
+            background-color: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <button id="menu-btn" class="menu-button">☰</button>
+        <h1>매장 위치 지도</h1>
+        <div style="width: 40px;"></div> <!-- 간격 맞추기용 -->
+    </header>
+    
+    <div class="map-container">
+        <div id="map"></div>
+        <button id="location-button" class="location-button" title="현재 위치로 이동">📍</button>
+    </div>
+    
+    <div id="side-menu" class="side-menu">
+        <button id="close-menu" class="close-menu">✕</button>
+        <h2 class="menu-title">매장 정보 업로드</h2>
+        
+        <div class="file-section">
+            <p>CSV 파일을 선택하여 매장 정보를 지도에 표시합니다.</p>
+            <input type="file" id="csv-file" class="file-input" accept=".csv">
+            <button id="load-map" class="upload-button">지도에 표시하기</button>
+        </div>
+        
+        <div class="help-section">
+            <details>
+                <summary>CSV 파일 형식 안내</summary>
+                <div style="padding: 10px; background: #f8f8f8; border-radius: 8px; margin-top: 10px; font-size: 14px;">
+                    <p><b>CSV 파일 형식 안내:</b></p>
+                    <p>- 첫 번째 행은 반드시 열 이름을 포함해야 합니다.</p>
+                    <p>- '이름'과 '주소' 열이 포함되어야 합니다.</p>
+                    <p>- '위도'와 '경도' 열이 있으면 더 정확한 위치 표시가 가능합니다.</p>
+                    <p>- CSV 파일은 UTF-8 인코딩으로 저장하세요.</p>
+                    <p><b>샘플:</b></p>
+                    <pre>이름,주소,상세주소,카테고리,위도,경도
+본가닭탕,경기도 부천시 소사구 부광로8번길 11,1층,음식점,37.4859,126.7932
+민속가든,경기도 부천시 오정구 고강동 345번길 15,2층,음식점,37.5245,126.7851</pre>
+                </div>
+            </details>
+        </div>
+    </div>
+    
+    <div id="overlay" class="overlay"></div>
+    <div id="loading" class="loading">데이터 처리 중...</div>
+
+    <script>
+        // 전역 변수
+        let map;
+        let markers = [];
+        let stores = [];
+        let geocoder;
+        
+        // 페이지 로드 시 지도 초기화 및 메뉴 이벤트 설정
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM이 로드되었습니다.');
+            
+            // 메뉴 버튼 이벤트
+            const menuBtn = document.getElementById('menu-btn');
+            console.log('메뉴 버튼:', menuBtn);
+            
+            menuBtn.addEventListener('click', function() {
+                console.log('메뉴 버튼 클릭됨');
+                document.getElementById('side-menu').classList.add('open');
+                document.getElementById('overlay').style.display = 'block';
+            });
+            
+            // 닫기 버튼 이벤트
+            document.getElementById('close-menu').addEventListener('click', closeMenu);
+            
+            // 오버레이 클릭 시 메뉴 닫기
+            document.getElementById('overlay').addEventListener('click', closeMenu);
+            
+            // 지도 초기화
+            setTimeout(function() {
+                try {
+                    if (typeof kakao === 'undefined' || typeof kakao.maps === 'undefined') {
+                        alert('카카오맵 API 로드에 실패했습니다. 페이지를 새로고침 해주세요.');
+                        return;
+                    }
+                    
+                    initMap();
+                    document.getElementById('load-map').addEventListener('click', function() {
+                        processCSV();
+                        closeMenu();
+                    });
+                    
+                    // 현재 위치 버튼 이벤트
+                    document.getElementById('location-button').addEventListener('click', getCurrentLocation);
+                } catch (e) {
+                    console.error('카카오맵 초기화 오류:', e);
+                    alert('카카오맵 초기화 중 오류가 발생했습니다: ' + e.message);
+                }
+            }, 1000);
+        });
+        
+        // 메뉴 닫기 함수
+        function closeMenu() {
+            console.log('메뉴 닫기 함수 호출됨');
+            document.getElementById('side-menu').classList.remove('open');
+            document.getElementById('overlay').style.display = 'none';
+        }
+        
+        // 현재 위치 가져오기
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('loading').innerText = '위치 정보를 가져오는 중...';
+                
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        // 위치 정보 가져오기 성공
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        console.log('현재 위치:', lat, lng);
+                        
+                        const currentPos = new kakao.maps.LatLng(lat, lng);
+                        
+                        // 지도 중심 이동
+                        map.setCenter(currentPos);
+                        map.setLevel(3);
+                        
+                        // 현재 위치 마커 생성 (기존 현재 위치 마커 삭제 후)
+                        if (window.currentPosMarker) {
+                            window.currentPosMarker.setMap(null);
+                        }
+                        
+                        // 현재 위치 마커 생성
+                        const imageSrc = 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png';
+                        const imageSize = new kakao.maps.Size(24, 35);
+                        const markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize);
+                        
+                        window.currentPosMarker = new kakao.maps.Marker({
+                            map: map,
+                            position: currentPos,
+                            image: markerImage
+                        });
+                        
+                        document.getElementById('loading').style.display = 'none';
+                    },
+                    function(error) {
+                        // 위치 정보 가져오기 실패
+                        document.getElementById('loading').style.display = 'none';
+                        
+                        let errorMessage = '위치 정보를 가져오는 데 실패했습니다.';
+                        
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage = '위치 정보 접근 권한이 거부되었습니다.';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage = '위치 정보를 사용할 수 없습니다.';
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage = '위치 정보 요청 시간이 초과되었습니다.';
+                                break;
+                        }
+                        
+                        alert(errorMessage);
+                        console.error('Geolocation 오류:', error);
+                    },
+                    { 
+                        enableHighAccuracy: true, 
+                        timeout: 10000, 
+                        maximumAge: 0 
+                    }
+                );
+            } else {
+                alert('이 브라우저에서는 위치 정보 기능을 지원하지 않습니다.');
+            }
+        }
+        
+        // 카카오 주소 검색 서비스 초기화 시 옵션 추가
+        function initMap() {
+            const container = document.getElementById('map');
+            const options = {
+                center: new kakao.maps.LatLng(37.5665, 126.9780), // 서울 중심
+                level: 8
+            };
+            
+            map = new kakao.maps.Map(container, options);
+            
+            // 지오코더 초기화 시 옵션 추가
+            geocoder = new kakao.maps.services.Geocoder({
+                analyzeType: 'similar' // 유사 주소 검색 허용
+            });
+        }
+        
+        // CSV 파일 처리
+        function processCSV() {
+            const fileInput = document.getElementById('csv-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('CSV 파일을 선택해주세요.');
+                return;
+            }
+            
+            // 로딩 표시
+            document.getElementById('loading').style.display = 'block';
+            
+            // 기존 마커 제거
+            clearMarkers();
+            
+            // CSV 파싱
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    if (results.errors && results.errors.length > 0) {
+                        console.error('CSV 파싱 오류:', results.errors);
+                        alert('CSV 파일 파싱 중 오류가 발생했습니다.');
+                    }
+                    
+                    stores = results.data.filter(row => Object.keys(row).length > 1); // 빈 행 필터링
+                    console.log('로드된 데이터:', stores);
+                    processStores();
+                },
+                error: function(error) {
+                    alert('CSV 파일 처리 중 오류가 발생했습니다: ' + error);
+                    document.getElementById('loading').style.display = 'none';
+                }
+            });
+        }
+        
+        // 매장 데이터 처리
+        function processStores() {
+            if (stores.length === 0) {
+                alert('데이터가 없습니다.');
+                document.getElementById('loading').style.display = 'none';
+                return;
+            }
+            
+            console.log('처리할 데이터 수:', stores.length);
+            
+            // 첫 번째 행의 키를 확인
+            const firstRow = stores[0];
+            const keys = Object.keys(firstRow);
+            console.log('데이터 필드:', keys);
+            
+            // 첫 번째 항목에 대한 자세한 로깅
+            console.log('첫 번째 항목 전체 데이터:', firstRow);
+            console.log('모든 필드 값:');
+            for (const key in firstRow) {
+                console.log(`${key}: ${firstRow[key]} (${typeof firstRow[key]})`);
+            }
+            
+            // 비동기 주소 처리를 위한 카운터
+            let processedCount = 0;
+            let successCount = 0;
+            let errorCount = 0;
+            
+            stores.forEach((store, index) => {
+                // 이름 필드 확인
+                const storeName = store['이름'] || '이름 없음';
+                
+                // 위도/경도 직접 접근
+                const lat = store['위도'];
+                const lng = store['경도'];
+                
+                console.log(`직접 접근 확인 [${index}]: ${storeName}, 위도=${lat}, 경도=${lng}`);
+                
+                // 위도/경도가 있고 유효하면 사용
+                if (lat !== undefined && lng !== undefined && lat !== null && lng !== null) {
+                    const numLat = typeof lat === 'string' ? parseFloat(lat.replace(',', '.')) : lat;
+                    const numLng = typeof lng === 'string' ? parseFloat(lng.replace(',', '.')) : lng;
+                    
+                    console.log(`좌표 변환 [${index}]: ${storeName}, (${numLat}, ${numLng})`);
+                    
+                    if (!isNaN(numLat) && !isNaN(numLng) && numLat !== 0 && numLng !== 0) {
+                        successCount++;
+                        console.log(`유효한 좌표 [${index}]: ${storeName}, (${numLat}, ${numLng})`);
+                        
+                        const coords = new kakao.maps.LatLng(numLat, numLng);
+                        
+                        // 마커 생성
+                        const marker = new kakao.maps.Marker({
+                            map: map,
+                            position: coords
+                        });
+                        
+                        // 정보창 생성
+                        let content = `<div style="padding:5px;font-size:12px;width:150px;"><strong>${storeName}</strong>`;
+                        if (store['주소']) {
+                            content += `<br><span style="font-size:11px;color:#666;">${store['주소']}</span>`;
+                        }
+                        content += `</div>`;
+                        
+                        const infowindow = new kakao.maps.InfoWindow({
+                            content: content
+                        });
+                        
+                        // 마커 클릭 이벤트
+                        kakao.maps.event.addListener(marker, 'click', function() {
+                            // 다른 모든 인포윈도우 닫기
+                            markers.forEach(m => m.infowindow.close());
+                            infowindow.open(map, marker);
+                        });
+                        
+                        // 마커 저장
+                        markers.push({
+                            marker: marker,
+                            infowindow: infowindow,
+                            coords: coords,
+                            index: index
+                        });
+                        
+                        // 첫 번째 마커로 지도 중심 이동
+                        if (markers.length === 1) {
+                            map.setCenter(coords);
+                        }
+                        
+                        processedCount++;
+                        if (processedCount >= stores.length) {
+                            finishProcessing(successCount, errorCount);
+                        }
+                        return;
+                    }
+                }
+                
+                // 위도/경도 없으면 주소로 시도
+                const address = store['주소'];
+                if (!address) {
+                    processedCount++;
+                    console.log(`주소 및 좌표 누락 [${index}]:`, store);
+                    if (processedCount >= stores.length) {
+                        finishProcessing(successCount, errorCount);
+                    }
+                    return;
+                }
+                
+                console.log(`주소 변환 시도 [${index}]: "${address}"`);
+                
+                // 주소를 좌표로 변환
+                geocoder.addressSearch(address, function(result, status) {
+                    processedCount++;
+                    
+                    if (status === kakao.maps.services.Status.OK) {
+                        successCount++;
+                        console.log(`주소 변환 성공 [${index}]: ${address} -> (${result[0].y}, ${result[0].x})`);
+                        
+                        const coords = new kakao.maps.LatLng(result[0].y, result[0].x);
+                        
+                        // 마커 생성
+                        const marker = new kakao.maps.Marker({
+                            map: map,
+                            position: coords
+                        });
+                        
+                        // 정보창 생성
+                        let content = `<div style="padding:5px;font-size:12px;width:150px;"><strong>${storeName}</strong>`;
+                        content += `<br><span style="font-size:11px;color:#666;">${address}</span>`;
+                        content += `</div>`;
+                        
+                        const infowindow = new kakao.maps.InfoWindow({
+                            content: content
+                        });
+                        
+                        // 마커 클릭 이벤트
+                        kakao.maps.event.addListener(marker, 'click', function() {
+                            // 다른 모든 인포윈도우 닫기
+                            markers.forEach(m => m.infowindow.close());
+                            infowindow.open(map, marker);
+                        });
+                        
+                        // 마커 저장
+                        markers.push({
+                            marker: marker,
+                            infowindow: infowindow,
+                            coords: coords,
+                            index: index
+                        });
+                        
+                        // 첫 번째 마커로 지도 중심 이동
+                        if (markers.length === 1) {
+                            map.setCenter(coords);
+                        }
+                    } else {
+                        errorCount++;
+                        console.error(`주소 변환 실패 [${index}]: ${address}, 상태: ${status}`);
+                    }
+                    
+                    // 모든 주소 처리가 완료되면 로딩 숨김
+                    if (processedCount >= stores.length) {
+                        finishProcessing(successCount, errorCount);
+                    }
+                });
+            });
+        }
+        
+        // 처리 완료 함수
+        function finishProcessing(successCount, errorCount) {
+            document.getElementById('loading').style.display = 'none';
+            
+            // 처리 결과 메시지
+            const message = `처리 완료: ${successCount}개 성공, ${errorCount}개 실패`;
+            console.log(message);
+            
+            // 알림 표시
+            if (errorCount > 0) {
+                alert(`${message}\n일부 주소를 지도에 표시하지 못했습니다.`);
+            }
+            
+            // 모든 마커가 보이도록 지도 범위 설정
+            if (markers.length > 0) {
+                setBounds();
+            } else if (successCount === 0) {
+                alert('지도에 표시할 위치 정보가 없습니다. CSV 파일의 주소 형식을 확인해주세요.');
+            }
+        }
+        
+        // 마커 모두 제거
+        function clearMarkers() {
+            markers.forEach(markerInfo => {
+                markerInfo.marker.setMap(null);
+            });
+            markers = [];
+        }
+        
+        // 모든 마커가 보이도록 지도 범위 설정
+        function setBounds() {
+            const bounds = new kakao.maps.LatLngBounds();
+            
+            markers.forEach(markerInfo => {
+                bounds.extend(markerInfo.coords);
+            });
+            
+            map.setBounds(bounds);
+        }
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>매장 위치 지도</title>
+    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=46b58eca50897ba6771c3e40f3c7b8a4&libraries=services" charset="utf-8"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+        }
+        body {
+            padding: 0;
+            max-width: 100%;
+            overflow-x: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            background-color: #FEE500;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         h1 {
             font-size: 18px;
