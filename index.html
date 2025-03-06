@@ -14,32 +14,78 @@
             font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
         }
         body {
-            padding: 10px;
+            padding: 0;
             max-width: 100%;
             overflow-x: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            background-color: #FEE500;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         h1 {
-            font-size: 20px;
-            margin-bottom: 15px;
-            text-align: center;
+            font-size: 18px;
+            margin: 0;
         }
         #map {
             width: 100%;
-            height: 60vh;
-            border-radius: 8px;
-            margin-bottom: 15px;
+            flex: 1;
         }
-        .controls {
-            margin-bottom: 15px;
-            padding: 10px;
-            background-color: #f5f5f5;
-            border-radius: 8px;
+        .menu-button {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .side-menu {
+            position: fixed;
+            top: 0;
+            left: -300px;
+            width: 300px;
+            height: 100%;
+            background-color: white;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            transition: left 0.3s ease;
+            z-index: 10;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .side-menu.open {
+            left: 0;
+        }
+        .close-menu {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+        }
+        .menu-title {
+            font-size: 18px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .file-section {
+            margin-bottom: 20px;
         }
         .file-input {
             width: 100%;
             padding: 10px 0;
         }
-        button {
+        .upload-button {
             background-color: #FEE500;
             color: #000;
             border: none;
@@ -48,74 +94,95 @@
             font-weight: bold;
             width: 100%;
             cursor: pointer;
+            margin-top: 10px;
         }
-        button:active {
+        .upload-button:active {
             background-color: #E6CF00;
         }
-        .store-list {
-            margin-top: 20px;
-            height: 30vh;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 10px;
-        }
-        .store-item {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-            cursor: pointer;
-        }
-        .store-item:last-child {
-            border-bottom: none;
-        }
-        .store-name {
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        .store-address {
-            font-size: 14px;
-            color: #666;
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 5;
+            display: none;
         }
         .loading {
-            text-align: center;
-            padding: 20px;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px 40px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            z-index: 20;
             display: none;
+        }
+        .location-button {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background-color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 2;
+            cursor: pointer;
+            border: none;
+            font-size: 18px;
+        }
+        .location-button:active {
+            background-color: #f5f5f5;
         }
     </style>
 </head>
 <body>
     <h1>매장 위치 지도</h1>
     
-    <div class="controls">
-        <input type="file" id="csv-file" class="file-input" accept=".csv">
-        <button id="load-map">지도에 표시하기</button>
-    </div>
+    <button id="menu-btn" class="menu-button">☰</button>
     
-    <!-- CSV 샘플 및 도움말 섹션 추가 -->
-    <div class="controls">
-        <details>
-            <summary>도움말 및 CSV 샘플 형식</summary>
-            <div style="padding: 10px; background: #f8f8f8; border-radius: 8px; margin-top: 10px; font-size: 14px;">
-                <p><b>CSV 파일 형식 안내:</b></p>
-                <p>- 첫 번째 행은 반드시 열 이름을 포함해야 합니다.</p>
-                <p>- '이름'과 '주소' 열이 포함되어야 합니다 (대소문자 구분 없음).</p>
-                <p>- 위도/경도 정보가 있으면 주소 변환 없이 직접 지도에 표시됩니다.</p>
-                <p>- CSV 파일은 UTF-8 인코딩으로 저장하세요.</p>
-                <p><b>샘플:</b></p>
-                <pre>이름,주소,상세주소,카테고리,위도,경도
+    <div id="side-menu" class="side-menu">
+        <button id="close-menu" class="close-menu">✕</button>
+        <h2 class="menu-title">매장 정보 업로드</h2>
+        
+        <div class="file-section">
+            <p>CSV 파일을 선택하여 매장 정보를 지도에 표시합니다.</p>
+            <input type="file" id="csv-file" class="file-input" accept=".csv">
+            <button id="load-map" class="upload-button">지도에 표시하기</button>
+        </div>
+        
+        <div class="help-section">
+            <details>
+                <summary>CSV 파일 형식 안내</summary>
+                <div style="padding: 10px; background: #f8f8f8; border-radius: 8px; margin-top: 10px; font-size: 14px;">
+                    <p><b>CSV 파일 형식 안내:</b></p>
+                    <p>- 첫 번째 행은 반드시 열 이름을 포함해야 합니다.</p>
+                    <p>- '이름'과 '주소' 열이 포함되어야 합니다.</p>
+                    <p>- '위도'와 '경도' 열이 있으면 더 정확한 위치 표시가 가능합니다.</p>
+                    <p>- CSV 파일은 UTF-8 인코딩으로 저장하세요.</p>
+                    <p><b>샘플:</b></p>
+                    <pre>이름,주소,상세주소,카테고리,위도,경도
 본가닭탕,경기도 부천시 소사구 부광로8번길 11,1층,음식점,37.4859,126.7932
 민속가든,경기도 부천시 오정구 고강동 345번길 15,2층,음식점,37.5245,126.7851</pre>
-            </div>
-        </details>
+                </div>
+            </details>
+        </div>
     </div>
     
-    <div id="map"></div>
+    <div id="overlay" class="overlay"></div>
     
-    <div class="loading" id="loading">처리 중...</div>
-    
-    <div class="store-list" id="store-list">
-        <p style="text-align: center; padding: 20px;">CSV 파일을 업로드하세요</p>
+    <div id="map">
+        <button id="location-button" class="location-button" title="현재 위치로 이동">📍</button>
     </div>
+    
+    <div class="loading" id="loading">데이터 처리 중...</div>
 
     <script>
         // 전역 변수
