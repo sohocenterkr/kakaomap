@@ -91,6 +91,24 @@
         <button id="load-map">지도에 표시하기</button>
     </div>
     
+    <!-- CSV 샘플 및 도움말 섹션 추가 -->
+    <div class="controls">
+        <details>
+            <summary>도움말 및 CSV 샘플 형식</summary>
+            <div style="padding: 10px; background: #f8f8f8; border-radius: 8px; margin-top: 10px; font-size: 14px;">
+                <p><b>CSV 파일 형식 안내:</b></p>
+                <p>- 첫 번째 행은 반드시 열 이름을 포함해야 합니다.</p>
+                <p>- '이름'과 '주소' 열이 포함되어야 합니다 (대소문자 구분 없음).</p>
+                <p>- 주소는 '시/도 시/군/구 동/읍/면 도로명/지번' 형식을 권장합니다.</p>
+                <p>- CSV 파일은 UTF-8 인코딩으로 저장하세요.</p>
+                <p><b>샘플:</b></p>
+                <pre>이름,주소,설명
+본가닭탕,경기도 부천시 소사구 부광로8번길 11,02-123-4567
+민속가든,경기도 부천시 오정구 고강동 345번길 15,02-345-6789</pre>
+            </div>
+        </details>
+    </div>
+    
     <div id="map"></div>
     
     <div class="loading" id="loading">처리 중...</div>
@@ -124,7 +142,7 @@
             }, 1000); // API가 완전히 로드될 시간을 주기 위해 약간의 지연 추가
         });
         
-        // 지도 초기화
+        // 카카오 주소 검색 서비스 초기화 시 옵션 추가
         function initMap() {
             const container = document.getElementById('map');
             const options = {
@@ -133,7 +151,11 @@
             };
             
             map = new kakao.maps.Map(container, options);
-            geocoder = new kakao.maps.services.Geocoder();
+            
+            // 지오코더 초기화 시 옵션 추가
+            geocoder = new kakao.maps.services.Geocoder({
+                analyzeType: 'similar' // 유사 주소 검색 허용
+            });
         }
         
         // CSV 파일 처리
@@ -243,11 +265,13 @@
                 `;
                 
                 // 주소를 좌표로 변환
+                console.log(`주소 변환 시도 [${index}]: "${address}"`);
                 geocoder.addressSearch(address, function(result, status) {
                     processedCount++;
                     
                     if (status === kakao.maps.services.Status.OK) {
                         successCount++;
+                        console.log(`주소 변환 성공 [${index}]: ${address} -> (${result[0].y}, ${result[0].x})`);
                         const coords = new kakao.maps.LatLng(result[0].y, result[0].x);
                         
                         // 마커 생성
