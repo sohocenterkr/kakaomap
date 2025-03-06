@@ -123,10 +123,6 @@
         let markers = [];
         let stores = [];
         let geocoder;
-        let nameField = '';
-        let addressField = '';
-        let latField = '';
-        let lngField = '';
         
         // 페이지 로드 시 지도 초기화
         document.addEventListener('DOMContentLoaded', function() {
@@ -211,47 +207,16 @@
             
             console.log('처리할 데이터 수:', stores.length);
             
-            // 첫 번째 행의 키를 확인하여 주소와 이름 필드 추측
+            // 첫 번째 행의 키를 확인
             const firstRow = stores[0];
             const keys = Object.keys(firstRow);
             console.log('데이터 필드:', keys);
             
-            let nameField = '';
-            let addressField = '';
-            
-            // 필드명 추측
-            for (const key of keys) {
-                const keyLower = key.toLowerCase();
-                if (keyLower.includes('이름') || keyLower.includes('name') || keyLower.includes('상호') || keyLower === '매장명') {
-                    nameField = key;
-                }
-                if (keyLower.includes('주소') || keyLower.includes('address')) {
-                    addressField = key;
-                }
-            }
-            
-            // 필드를 찾지 못했다면 첫 번째와 두 번째 필드를 사용
-            if (!nameField && keys.length > 0) {
-                nameField = keys[0];
-            }
-            if (!addressField && keys.length > 1) {
-                addressField = keys[1];
-            }
-            
-            console.log('이름 필드:', nameField, '주소 필드:', addressField, '위도 필드:', latField, '경도 필드:', lngField);
-            
             // 첫 번째 항목에 대한 자세한 로깅
-            if (stores.length > 0) {
-                console.log('첫 번째 항목 전체 데이터:', stores[0]);
-                
-                if (latField) {
-                    console.log(`위도 필드 '${latField}'의 값:`, stores[0][latField], '타입:', typeof stores[0][latField]);
-                } else {
-                    console.log('모든 필드 검사:');
-                    for (const key in stores[0]) {
-                        console.log(`${key}: ${stores[0][key]} (${typeof stores[0][key]})`);
-                    }
-                }
+            console.log('첫 번째 항목 전체 데이터:', firstRow);
+            console.log('모든 필드 값:');
+            for (const key in firstRow) {
+                console.log(`${key}: ${firstRow[key]} (${typeof firstRow[key]})`);
             }
             
             // 스토어 목록 생성
@@ -263,34 +228,34 @@
             let errorCount = 0;
             
             stores.forEach((store, index) => {
-                if (!store[nameField]) {
-                    processedCount++;
-                    console.log(`이름 누락 [${index}]:`, store);
-                    if (processedCount >= stores.length) {
-                        finishProcessing(successCount, errorCount);
-                    }
-                    return;
-                }
+                // 이름 필드 확인
+                const storeName = store['이름'] || '이름 없음';
                 
-                const name = store[nameField];
+                // 위도/경도 직접 접근
+                const lat = store['위도'];
+                const lng = store['경도'];
                 
-                // 처음 시도: 직접 위도/경도 접근
-                const name = store['이름'] || store.이름 || 'Unknown';
-                const lat = store['위도'] || store.위도;
-                const lng = store['경도'] || store.경도;
+                console.log(`직접 접근 확인 [${index}]: ${storeName}, 위도=${lat}, 경도=${lng}`);
                 
-                console.log(`직접 접근 확인 [${index}]: ${name}, 위도=${lat}, 경도=${lng}`);
+                // 스토어 목록에 추가
+                storeListHTML += `
+                    <div class="store-item" data-index="${index}">
+                        <div class="store-name">${storeName}</div>
+                        <div class="store-address">${store['주소'] || ''}</div>
+                    </div>
+                `;
                 
                 // 위도/경도가 있고 유효하면 사용
                 if (lat !== undefined && lng !== undefined && lat !== null && lng !== null) {
                     const numLat = typeof lat === 'string' ? parseFloat(lat.replace(',', '.')) : lat;
                     const numLng = typeof lng === 'string' ? parseFloat(lng.replace(',', '.')) : lng;
                     
-                    console.log(`좌표 변환 [${index}]: ${name}, (${numLat}, ${numLng})`);
+                    console.log(`좌표 변환 [${index}]: ${storeName}, (${numLat}, ${numLng})`);
                     
                     if (!isNaN(numLat) && !isNaN(numLng) && numLat !== 0 && numLng !== 0) {
                         successCount++;
-                        console.log(`유효한 좌표 [${index}]: ${name}, (${numLat}, ${numLng})`);
+                        console.log(`유효한 좌표 [${index}]: ${storeName}, (${numLat}, ${numLng})`);
+                        
                         const coords = new kakao.maps.LatLng(numLat, numLng);
                         
                         // 마커 생성
@@ -300,9 +265,9 @@
                         });
                         
                         // 정보창 생성
-                        let content = `<div style="padding:5px;font-size:12px;width:150px;"><strong>${name}</strong>`;
-                        if (store[addressField]) {
-                            content += `<br><span style="font-size:11px;color:#666;">${store[addressField]}</span>`;
+                        let content = `<div style="padding:5px;font-size:12px;width:150px;"><strong>${storeName}</strong>`;
+                        if (store['주소']) {
+                            content += `<br><span style="font-size:11px;color:#666;">${store['주소']}</span>`;
                         }
                         content += `</div>`;
                         
@@ -338,8 +303,9 @@
                     }
                 }
                 
-                // 위도/경도가 없거나 유효하지 않은 경우 주소 사용
-                if (!store[addressField]) {
+                // 위도/경도 없으면 주소로 시도
+                const address = store['주소'];
+                if (!address) {
                     processedCount++;
                     console.log(`주소 및 좌표 누락 [${index}]:`, store);
                     if (processedCount >= stores.length) {
@@ -348,23 +314,16 @@
                     return;
                 }
                 
-                const address = store[addressField];
-                
-                storeListHTML += `
-                    <div class="store-item" data-index="${index}">
-                        <div class="store-name">${name}</div>
-                        <div class="store-address">${address}</div>
-                    </div>
-                `;
+                console.log(`주소 변환 시도 [${index}]: "${address}"`);
                 
                 // 주소를 좌표로 변환
-                console.log(`주소 변환 시도 [${index}]: "${address}"`);
                 geocoder.addressSearch(address, function(result, status) {
                     processedCount++;
                     
                     if (status === kakao.maps.services.Status.OK) {
                         successCount++;
                         console.log(`주소 변환 성공 [${index}]: ${address} -> (${result[0].y}, ${result[0].x})`);
+                        
                         const coords = new kakao.maps.LatLng(result[0].y, result[0].x);
                         
                         // 마커 생성
@@ -374,8 +333,12 @@
                         });
                         
                         // 정보창 생성
+                        let content = `<div style="padding:5px;font-size:12px;width:150px;"><strong>${storeName}</strong>`;
+                        content += `<br><span style="font-size:11px;color:#666;">${address}</span>`;
+                        content += `</div>`;
+                        
                         const infowindow = new kakao.maps.InfoWindow({
-                            content: `<div style="padding:5px;font-size:12px;width:150px;">${name}<br><span style="font-size:11px;color:#666;">${address}</span></div>`
+                            content: content
                         });
                         
                         // 마커 클릭 이벤트
