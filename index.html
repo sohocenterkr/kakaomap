@@ -188,20 +188,20 @@
         </div>
         
         <div class="help-section">
-     <details>
+  <details>
     <summary>CSV 파일 형식 안내</summary>
     <div style="padding: 10px; background: #f8f8f8; border-radius: 8px; margin-top: 10px; font-size: 14px;">
         <p><b>CSV 파일 형식 안내:</b></p>
         <p>- 첫 번째 행은 반드시 열 이름을 포함해야 합니다.</p>
-        <p>- '이름'과 '주소' 열이 포함되어야 합니다.</p>
-        <p>- '위도(WGS84)'와 '경도(WGS84)' 열이 있어야 지도에 표시됩니다.</p>
+        <p>- 필수 필드: '위도(WGS84)'와 '경도(WGS84)'</p>
+        <p>- 권장 필드: '사업장명', '기본주소', '상세주소', '업태구분명', '인허가일자'</p>
         <p>- CSV 파일은 UTF-8 인코딩으로 저장하세요.</p>
         <p><b>샘플:</b></p>
-        <pre>이름,주소,상세주소,카테고리,위도(WGS84),경도(WGS84)
-본가닭탕,경기도 부천시 소사구 부광로8번길 11 (괴안동),,일반음식점,37.472573,126.805132
-민속가든,경기도 부천시 오정구 가로공원로45번길 94 (고강동),1층 전체호 (고강동),일반음식점,37.533316,126.766687</pre>
+        <pre>사업장명,기본주소,상세주소,업태구분명,인허가일자,좌표정보X(EPSG5174),좌표정보Y(EPSG5174),위도(WGS84),경도(WGS84)
+본가닭탕,경기도 부천시 소사구 부광로8번길 11 (괴안동),,일반음식점,2023-01-15,952184.8123,1939908.9468,37.472573,126.805132
+민속가든,경기도 부천시 오정구 가로공원로45번길 94 (고강동),1층 전체호 (고강동),일반음식점,2022-05-20,947263.1208,1946402.3992,37.533316,126.766687</pre>
     </div>
-    </details>
+</details>
         </div>
     </div>
     
@@ -444,6 +444,7 @@
         
         // 매장 데이터 처리 (위도/경도만 사용하는 버전)
      // 매장 데이터 처리 (위도/경도만 사용하는 버전)
+// 매장 데이터 처리
 function processStores() {
     if (stores.length === 0) {
         alert('데이터가 없습니다.');
@@ -461,28 +462,64 @@ function processStores() {
     // 첫 번째 항목에 대한 자세한 로깅
     console.log('첫 번째 항목 전체 데이터:', firstRow);
     
-    // 위도/경도 필드명 검색
-    let latFieldName = null;
-    let lngFieldName = null;
+    // 필드명 매핑
+    let fieldMapping = {
+        name: null,          // 상호명/사업장명
+        address: null,       // 기본주소
+        detailAddress: null, // 상세주소
+        category: null,      // 업태구분명/카테고리
+        licenseDate: null,   // 인허가일자
+        lat: null,           // 위도(WGS84)
+        lng: null            // 경도(WGS84)
+    };
     
-    // 위도/경도 필드명 찾기
+    // 필드명 자동 매핑
     for (const key of keys) {
-        // 위도 필드명 검색 ("위도", "위도(WGS84)" 등 포함된 형태도 찾음)
+        // 상호명/사업장명 찾기
+        if (key === '이름' || key === '상호명' || key === '사업장명' || key.includes('상호') || key.includes('사업장')) {
+            fieldMapping.name = key;
+            console.log(`이름 필드 발견: ${key}`);
+        }
+        
+        // 기본주소 찾기
+        if (key === '주소' || key === '기본주소' || key.includes('주소')) {
+            fieldMapping.address = key;
+            console.log(`주소 필드 발견: ${key}`);
+        }
+        
+        // 상세주소 찾기
+        if (key === '상세주소' || key.includes('상세')) {
+            fieldMapping.detailAddress = key;
+            console.log(`상세주소 필드 발견: ${key}`);
+        }
+        
+        // 업태구분/카테고리 찾기
+        if (key === '카테고리' || key === '업태구분명' || key.includes('업태') || key.includes('카테고리')) {
+            fieldMapping.category = key;
+            console.log(`업태구분 필드 발견: ${key}`);
+        }
+        
+        // 인허가일자 찾기
+        if (key === '인허가일자' || key.includes('인허가') || key.includes('허가일')) {
+            fieldMapping.licenseDate = key;
+            console.log(`인허가일자 필드 발견: ${key}`);
+        }
+        
+        // 위도 필드명 찾기
         if (key === '위도' || key === '위도(WGS84)' || key.includes('위도')) {
-            latFieldName = key;
+            fieldMapping.lat = key;
             console.log(`위도 필드 발견: ${key}`);
         }
-        // 경도 필드명 검색 ("경도", "경도(WGS84)" 등 포함된 형태도 찾음)
+        
+        // 경도 필드명 찾기
         if (key === '경도' || key === '경도(WGS84)' || key.includes('경도')) {
-            lngFieldName = key;
+            fieldMapping.lng = key;
             console.log(`경도 필드 발견: ${key}`);
         }
     }
     
-    if (!latFieldName) console.log('경고: 위도 필드를 찾을 수 없습니다!');
-    if (!lngFieldName) console.log('경고: 경도 필드를 찾을 수 없습니다!');
-    
-    if (!latFieldName || !lngFieldName) {
+    // 필수 필드 확인
+    if (!fieldMapping.lat || !fieldMapping.lng) {
         alert('CSV 파일에서 위도/경도 필드를 찾을 수 없습니다.\n\n다음 필드명을 확인해주세요:\n- 위도, 위도(WGS84) 또는 이와 유사한 이름\n- 경도, 경도(WGS84) 또는 이와 유사한 이름');
         document.getElementById('loading').style.display = 'none';
         return;
@@ -492,16 +529,16 @@ function processStores() {
     const bounds = new kakao.maps.LatLngBounds();
     
     stores.forEach((store, index) => {
-        // 이름 필드 확인
-        const storeName = store['이름'] || '이름 없음';
+        // 매장 정보 가져오기
+        const storeName = fieldMapping.name ? store[fieldMapping.name] || '이름 없음' : '이름 없음';
+        const address = fieldMapping.address ? store[fieldMapping.address] || '' : '';
+        const detailAddress = fieldMapping.detailAddress ? store[fieldMapping.detailAddress] || '' : '';
+        const category = fieldMapping.category ? store[fieldMapping.category] || '' : '';
+        const licenseDate = fieldMapping.licenseDate ? store[fieldMapping.licenseDate] || '' : '';
         
-        // 위도/경도 필드 동적 접근
-        const lat = store[latFieldName];
-        const lng = store[lngFieldName];
-        
-        // 주소 정보
-        const address = store['주소'] || '';
-        const detailAddress = store['상세주소'] || '';
+        // 위도/경도 가져오기
+        const lat = fieldMapping.lat ? store[fieldMapping.lat] : null;
+        const lng = fieldMapping.lng ? store[fieldMapping.lng] : null;
         
         console.log(`데이터 확인 [${index}]: ${storeName}, 위도=${lat}, 경도=${lng}`);
         
@@ -526,26 +563,31 @@ function processStores() {
                 });
                 
                 // 정보창 내용 생성
-                let content = `<div style="padding:5px;font-size:12px;width:200px;">`;
-                content += `<strong>${storeName}</strong>`;
+                let content = `<div style="padding:10px;font-size:12px;width:250px;line-height:1.5;">`;
+                content += `<strong style="font-size:14px;display:block;margin-bottom:5px;">${storeName}</strong>`;
                 
                 // 주소 정보 추가
                 if (address) {
-                    content += `<br><span style="font-size:11px;color:#666;">${address}</span>`;
+                    content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">주소:</span> ${address}</div>`;
                 }
                 
                 // 상세주소 정보 추가
                 if (detailAddress) {
-                    content += `<br><span style="font-size:11px;color:#666;">${detailAddress}</span>`;
+                    content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">상세주소:</span> ${detailAddress}</div>`;
                 }
                 
-                // 카테고리 정보 추가
-                if (store['카테고리']) {
-                    content += `<br><span style="font-size:11px;color:#0066cc;">${store['카테고리']}</span>`;
+                // 업태구분명 정보 추가
+                if (category) {
+                    content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">업태:</span> ${category}</div>`;
+                }
+                
+                // 인허가일자 정보 추가
+                if (licenseDate) {
+                    content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">인허가일자:</span> ${licenseDate}</div>`;
                 }
                 
                 // 위도/경도 정보 추가
-                content += `<br><span style="font-size:11px;color:#999;">위도: ${numLat.toFixed(6)}, 경도: ${numLng.toFixed(6)}</span>`;
+                content += `<div style="font-size:11px;color:#999;margin-top:5px;">위도: ${numLat.toFixed(6)}, 경도: ${numLng.toFixed(6)}</div>`;
                 content += `</div>`;
                 
                 const infowindow = new kakao.maps.InfoWindow({
