@@ -211,6 +211,7 @@
     <script>
     // 모든 코드를 즉시 실행 함수(IIFE)로 감싸서 전역 변수 충돌 방지
 // 모든 코드를 즉시 실행 함수(IIFE)로 감싸서 전역 변수 충돌 방지
+// 모든 코드를 즉시 실행 함수(IIFE)로 감싸서 전역 변수 충돌 방지
 (function() {
     // 지역 변수
     var mapInstance;
@@ -567,34 +568,70 @@
         }
         
         let validLocations = 0;
-// 클러스터러 생성
-const clusterer = new kakao.maps.MarkerClusterer({
-    map: mapInstance,
-    averageCenter: true,
-    minLevel: 5,
-    disableClickZoom: false,
-    calculator: [10, 30, 50],
-    styles: [
-        { /* 스타일 정의 */ },
-        { /* 스타일 정의 */ },
-        { /* 스타일 정의 */ },
-        { /* 스타일 정의 */ }
-    ]
-});
-
-// 전역 참조를 위한 저장
-window.currentClusterer = clusterer;
-
-// 클러스터 클릭 이벤트
-kakao.maps.event.addListener(clusterer, 'clusterclick', function(cluster) {
-    const level = mapInstance.getLevel() - 1;
-    mapInstance.setLevel(level, {anchor: cluster.getCenter()});
-});
-
-// 클러스터러에 추가할 마커 배열
-let clusterMarkers = [];
-        
         const bounds = new kakao.maps.LatLngBounds();
+        
+        // 클러스터러 생성
+        const clusterer = new kakao.maps.MarkerClusterer({
+            map: mapInstance,
+            averageCenter: true, 
+            minLevel: 5,
+            disableClickZoom: false, 
+            calculator: [10, 30, 50],
+            styles: [
+                { // 10개 미만
+                    width: '40px', height: '40px',
+                    background: 'rgba(255, 80, 80, 0.9)',
+                    borderRadius: '20px',
+                    color: '#fff',
+                    textAlign: 'center',
+                    fontWeight: 'bold',
+                    lineHeight: '40px',
+                    fontSize: '14px'
+                },
+                { // 10개 이상 30개 미만
+                    width: '50px', height: '50px',
+                    background: 'rgba(255, 153, 0, 0.9)',
+                    borderRadius: '25px',
+                    color: '#fff',
+                    textAlign: 'center',
+                    fontWeight: 'bold',
+                    lineHeight: '50px',
+                    fontSize: '15px'
+                },
+                { // 30개 이상 50개 미만
+                    width: '60px', height: '60px',
+                    background: 'rgba(0, 116, 217, 0.9)',
+                    borderRadius: '30px',
+                    color: '#fff',
+                    textAlign: 'center',
+                    fontWeight: 'bold',
+                    lineHeight: '60px',
+                    fontSize: '16px'
+                },
+                { // 50개 이상
+                    width: '70px', height: '70px',
+                    background: 'rgba(52, 73, 94, 0.9)',
+                    borderRadius: '35px',
+                    color: '#fff',
+                    textAlign: 'center',
+                    fontWeight: 'bold',
+                    lineHeight: '70px',
+                    fontSize: '17px'
+                }
+            ]
+        });
+        
+        // 전역 참조를 위한 저장
+        window.currentClusterer = clusterer;
+        
+        // 클러스터 클릭 이벤트
+        kakao.maps.event.addListener(clusterer, 'clusterclick', function(cluster) {
+            const level = mapInstance.getLevel() - 1;
+            mapInstance.setLevel(level, {anchor: cluster.getCenter()});
+        });
+        
+        // 클러스터러에 추가할 마커 배열
+        let clusterMarkers = [];
         
         stores.forEach((store, index) => {
             // 매장 정보 가져오기
@@ -624,12 +661,12 @@ let clusterMarkers = [];
                     
                     const coords = new kakao.maps.LatLng(numLat, numLng);
                     
-                    // 마커 생성
-                const marker = new kakao.maps.Marker({
+                    // 마커 생성 - map 속성을 제거하여 지도에 직접 표시하지 않음
+                    const marker = new kakao.maps.Marker({
                         position: coords
-                });
-
-                // 클러스터에 추가할 마커 배열에 마커 추가
+                    });
+                    
+                    // 클러스터에 추가할 마커 배열에 마커 추가
                     clusterMarkers.push(marker);
                     
                     // 정보창 내용 생성
@@ -715,12 +752,13 @@ let clusterMarkers = [];
             } else {
                 console.log(`좌표 누락 [${index}]: ${storeName}`);
             }
-// 클러스터러에 마커 추가
-if (clusterMarkers.length > 0) {
-    clusterer.addMarkers(clusterMarkers);
-}
-            
         });
+        
+        // 클러스터러에 마커 추가 - forEach 루프 밖에서 한 번만 실행
+        if (clusterMarkers.length > 0) {
+            clusterer.addMarkers(clusterMarkers);
+            console.log(`클러스터러에 ${clusterMarkers.length}개의 마커 추가됨`);
+        }
         
         document.getElementById('loading').style.display = 'none';
         
@@ -739,19 +777,19 @@ if (clusterMarkers.length > 0) {
             alert('지도에 표시할 유효한 위치 정보가 없습니다.\n\n다음 사항을 확인해주세요:\n1. CSV 파일에 \'위도(WGS84)\'와 \'경도(WGS84)\' 필드가 있는지 확인\n2. 위도/경도 값이 올바른 숫자 형식인지 확인');
         }
     }
-   
-    // 마커 모두 제거
-  function clearMarkers() {
-    // 클러스터러에서 마커 제거
-    if (window.currentClusterer) {
-        window.currentClusterer.clear();
-    }
     
-    // 기존 마커 제거
-    markers.forEach(markerInfo => {
-        markerInfo.marker.setMap(null);
-    });
-    markers = [];
+    // 마커 모두 제거
+    function clearMarkers() {
+        // 클러스터러에서 마커 제거
+        if (window.currentClusterer) {
+            window.currentClusterer.clear();
+        }
+        
+        // 기존 마커 제거
+        markers.forEach(markerInfo => {
+            markerInfo.marker.setMap(null);
+        });
+        markers = [];
     }
 })();
     </script>
