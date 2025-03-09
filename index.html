@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>매장 위치 지도</title>
-    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=46b58eca50897ba6771c3e40f3c7b8a4&libraries=clusterer" charset="utf-8"></script>
+    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=46b58eca50897ba6771c3e40f3c7b8a4&libraries=services,clusterer" charset="utf-8"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
         * {
@@ -445,352 +445,416 @@
     }
     
     // 매장 데이터 처리
-    function processStores() {
-        if (stores.length === 0) {
-            alert('데이터가 없습니다.');
-            document.getElementById('loading').style.display = 'none';
-            return;
+  function processStores() {
+    if (stores.length === 0) {
+        alert('데이터가 없습니다.');
+        document.getElementById('loading').style.display = 'none';
+        return;
+    }
+    
+    console.log('처리할 데이터 수:', stores.length);
+    
+    // 첫 번째 행의 키를 확인
+    const firstRow = stores[0];
+    const keys = Object.keys(firstRow);
+    console.log('데이터 필드:', keys);
+    
+    // 첫 번째 항목에 대한 자세한 로깅
+    console.log('첫 번째 항목 전체 데이터:', firstRow);
+    
+    // 필드명 매핑
+    let fieldMapping = {
+        name: null,          // 상호명/사업장명
+        address: null,       // 기본주소
+        detailAddress: null, // 상세주소
+        category: null,      // 업태구분명/카테고리
+        licenseDate: null,   // 인허가일자
+        lat: null,           // 위도(WGS84)
+        lng: null            // 경도(WGS84)
+    };
+    
+    // 특정 키워드에 가장 정확히 일치하는 필드 찾기
+    function findExactField(keys, exactMatches, partialMatches) {
+        // 정확히 일치하는 필드 먼저 확인
+        for (const key of keys) {
+            if (exactMatches.includes(key)) {
+                return key;
+            }
         }
         
-        console.log('처리할 데이터 수:', stores.length);
-        
-        // 첫 번째 행의 키를 확인
-        const firstRow = stores[0];
-        const keys = Object.keys(firstRow);
-        console.log('데이터 필드:', keys);
-        
-        // 첫 번째 항목에 대한 자세한 로깅
-        console.log('첫 번째 항목 전체 데이터:', firstRow);
-        
-        // 필드명 매핑
-        let fieldMapping = {
-            name: null,          // 상호명/사업장명
-            address: null,       // 기본주소
-            detailAddress: null, // 상세주소
-            category: null,      // 업태구분명/카테고리
-            licenseDate: null,   // 인허가일자
-            lat: null,           // 위도(WGS84)
-            lng: null            // 경도(WGS84)
-        };
-        
-        // 특정 키워드에 가장 정확히 일치하는 필드 찾기
-        function findExactField(keys, exactMatches, partialMatches) {
-            // 정확히 일치하는 필드 먼저 확인
-            for (const key of keys) {
-                if (exactMatches.includes(key)) {
+        // 부분 일치하는 필드 확인
+        for (const key of keys) {
+            for (const match of partialMatches) {
+                if (key.includes(match)) {
                     return key;
                 }
             }
-            
-            // 부분 일치하는 필드 확인
-            for (const key of keys) {
-                for (const match of partialMatches) {
-                    if (key.includes(match)) {
-                        return key;
-                    }
-                }
+        }
+        
+        return null;
+    }
+    
+    // 이름/사업장명 필드 찾기
+    fieldMapping.name = findExactField(
+        keys, 
+        ['이름', '상호명', '사업장명', '업소명'], 
+        ['상호', '사업장', '업소']
+    );
+    
+    // 기본주소 필드 찾기
+    fieldMapping.address = findExactField(
+        keys,
+        ['주소', '기본주소'],
+        ['주소']
+    );
+    
+    // 상세주소 필드 찾기
+    fieldMapping.detailAddress = findExactField(
+        keys,
+        ['상세주소'],
+        ['상세']
+    );
+    
+    // 업태구분/카테고리 필드 찾기
+    fieldMapping.category = findExactField(
+        keys,
+        ['카테고리', '업태구분명', '업태', '업종'],
+        ['업태', '업종', '카테고리']
+    );
+    
+    // 인허가일자 필드 찾기
+    fieldMapping.licenseDate = findExactField(
+        keys,
+        ['인허가일자', '허가일자', '등록일자'],
+        ['인허가', '허가일', '등록일']
+    );
+    
+    // 위도 필드 찾기
+    fieldMapping.lat = findExactField(
+        keys,
+        ['위도', '위도(WGS84)'],
+        ['위도']
+    );
+    
+    // 경도 필드 찾기
+    fieldMapping.lng = findExactField(
+        keys,
+        ['경도', '경도(WGS84)'],
+        ['경도']
+    );
+    
+    // 결과 로깅
+    console.log('최종 필드 매핑 결과:', fieldMapping);
+    
+    // 첫 번째 레코드의 모든 필드 값 출력 (실제 데이터 확인용)
+    if (stores.length > 0) {
+        const firstRecord = stores[0];
+        console.log('첫 번째 레코드 상세 내용:');
+        
+        console.log('이름 필드:', fieldMapping.name, '값:', firstRecord[fieldMapping.name]);
+        console.log('주소 필드:', fieldMapping.address, '값:', firstRecord[fieldMapping.address]);
+        console.log('상세주소 필드:', fieldMapping.detailAddress, '값:', firstRecord[fieldMapping.detailAddress]);
+        console.log('업태 필드:', fieldMapping.category, '값:', firstRecord[fieldMapping.category]);
+        console.log('인허가일자 필드:', fieldMapping.licenseDate, '값:', firstRecord[fieldMapping.licenseDate]);
+        console.log('위도 필드:', fieldMapping.lat, '값:', firstRecord[fieldMapping.lat]);
+        console.log('경도 필드:', fieldMapping.lng, '값:', firstRecord[fieldMapping.lng]);
+    }
+    
+    // 필수 필드 확인
+    if (!fieldMapping.lat || !fieldMapping.lng) {
+        console.log('위도/경도 필드를 찾을 수 없습니다. 주소를 사용해 좌표를 구합니다.');
+    }
+    
+    let validLocations = 0;
+    const bounds = new kakao.maps.LatLngBounds();
+    
+    // 주소-좌표 변환 객체 생성
+    const geocoder = new kakao.maps.services.Geocoder();
+    
+    // 비동기 처리 완료 확인을 위한 변수
+    let processedCount = 0;
+    const totalCount = stores.length;
+    
+    // 클러스터러 생성
+    const clusterer = new kakao.maps.MarkerClusterer({
+        map: mapInstance,
+        averageCenter: true, 
+        minLevel: 5,
+        disableClickZoom: false, 
+        calculator: [10, 30, 50],
+        styles: [
+            { // 10개 미만
+                width: '40px', height: '40px',
+                background: 'rgba(255, 80, 80, 0.9)',
+                borderRadius: '20px',
+                color: '#fff',
+                textAlign: 'center',
+                fontWeight: 'bold',
+                lineHeight: '40px',
+                fontSize: '14px'
+            },
+            { // 10개 이상 30개 미만
+                width: '50px', height: '50px',
+                background: 'rgba(255, 153, 0, 0.9)',
+                borderRadius: '25px',
+                color: '#fff',
+                textAlign: 'center',
+                fontWeight: 'bold',
+                lineHeight: '50px',
+                fontSize: '15px'
+            },
+            { // 30개 이상 50개 미만
+                width: '60px', height: '60px',
+                background: 'rgba(0, 116, 217, 0.9)',
+                borderRadius: '30px',
+                color: '#fff',
+                textAlign: 'center',
+                fontWeight: 'bold',
+                lineHeight: '60px',
+                fontSize: '16px'
+            },
+            { // 50개 이상
+                width: '70px', height: '70px',
+                background: 'rgba(52, 73, 94, 0.9)',
+                borderRadius: '35px',
+                color: '#fff',
+                textAlign: 'center',
+                fontWeight: 'bold',
+                lineHeight: '70px',
+                fontSize: '17px'
             }
-            
-            return null;
-        }
-        
-        // 이름/사업장명 필드 찾기
-        fieldMapping.name = findExactField(
-            keys, 
-            ['이름', '상호명', '사업장명', '업소명'], 
-            ['상호', '사업장', '업소']
-        );
-        
-        // 기본주소 필드 찾기
-        fieldMapping.address = findExactField(
-            keys,
-            ['주소', '기본주소'],
-            ['주소']
-        );
-        
-        // 상세주소 필드 찾기
-        fieldMapping.detailAddress = findExactField(
-            keys,
-            ['상세주소'],
-            ['상세']
-        );
-        
-        // 업태구분/카테고리 필드 찾기
-        fieldMapping.category = findExactField(
-            keys,
-            ['카테고리', '업태구분명', '업태', '업종'],
-            ['업태', '업종', '카테고리']
-        );
-        
-        // 인허가일자 필드 찾기
-        fieldMapping.licenseDate = findExactField(
-            keys,
-            ['인허가일자', '허가일자', '등록일자'],
-            ['인허가', '허가일', '등록일']
-        );
-        
-        // 위도 필드 찾기
-        fieldMapping.lat = findExactField(
-            keys,
-            ['위도', '위도(WGS84)'],
-            ['위도']
-        );
-        
-        // 경도 필드 찾기
-        fieldMapping.lng = findExactField(
-            keys,
-            ['경도', '경도(WGS84)'],
-            ['경도']
-        );
-        
-        // 결과 로깅
-        console.log('최종 필드 매핑 결과:', fieldMapping);
-        
-        // 첫 번째 레코드의 모든 필드 값 출력 (실제 데이터 확인용)
-        if (stores.length > 0) {
-            const firstRecord = stores[0];
-            console.log('첫 번째 레코드 상세 내용:');
-            
-            console.log('이름 필드:', fieldMapping.name, '값:', firstRecord[fieldMapping.name]);
-            console.log('주소 필드:', fieldMapping.address, '값:', firstRecord[fieldMapping.address]);
-            console.log('상세주소 필드:', fieldMapping.detailAddress, '값:', firstRecord[fieldMapping.detailAddress]);
-            console.log('업태 필드:', fieldMapping.category, '값:', firstRecord[fieldMapping.category]);
-            console.log('인허가일자 필드:', fieldMapping.licenseDate, '값:', firstRecord[fieldMapping.licenseDate]);
-            console.log('위도 필드:', fieldMapping.lat, '값:', firstRecord[fieldMapping.lat]);
-            console.log('경도 필드:', fieldMapping.lng, '값:', firstRecord[fieldMapping.lng]);
-        }
-        
-        // 필수 필드 확인
-        if (!fieldMapping.lat || !fieldMapping.lng) {
-            alert('CSV 파일에서 위도/경도 필드를 찾을 수 없습니다.\n\n다음 필드명을 확인해주세요:\n- 위도, 위도(WGS84) 또는 이와 유사한 이름\n- 경도, 경도(WGS84) 또는 이와 유사한 이름');
-            document.getElementById('loading').style.display = 'none';
-            return;
-        }
-        
-        let validLocations = 0;
-        const bounds = new kakao.maps.LatLngBounds();
-        
-        // 클러스터러 생성
-        const clusterer = new kakao.maps.MarkerClusterer({
-            map: mapInstance,
-            averageCenter: true, 
-            minLevel: 5,
-            disableClickZoom: false, 
-            calculator: [10, 30, 50],
-            styles: [
-                { // 10개 미만
-                    width: '40px', height: '40px',
-                    background: 'rgba(255, 80, 80, 0.9)',
-                    borderRadius: '20px',
-                    color: '#fff',
-                    textAlign: 'center',
-                    fontWeight: 'bold',
-                    lineHeight: '40px',
-                    fontSize: '14px'
-                },
-                { // 10개 이상 30개 미만
-                    width: '50px', height: '50px',
-                    background: 'rgba(255, 153, 0, 0.9)',
-                    borderRadius: '25px',
-                    color: '#fff',
-                    textAlign: 'center',
-                    fontWeight: 'bold',
-                    lineHeight: '50px',
-                    fontSize: '15px'
-                },
-                { // 30개 이상 50개 미만
-                    width: '60px', height: '60px',
-                    background: 'rgba(0, 116, 217, 0.9)',
-                    borderRadius: '30px',
-                    color: '#fff',
-                    textAlign: 'center',
-                    fontWeight: 'bold',
-                    lineHeight: '60px',
-                    fontSize: '16px'
-                },
-                { // 50개 이상
-                    width: '70px', height: '70px',
-                    background: 'rgba(52, 73, 94, 0.9)',
-                    borderRadius: '35px',
-                    color: '#fff',
-                    textAlign: 'center',
-                    fontWeight: 'bold',
-                    lineHeight: '70px',
-                    fontSize: '17px'
-                }
-            ]
-        });
-        
-        // 전역 참조를 위한 저장
-        window.currentClusterer = clusterer;
-        
-        // 클러스터 클릭 이벤트
-        kakao.maps.event.addListener(clusterer, 'clusterclick', function(cluster) {
-            const level = mapInstance.getLevel() - 1;
-            mapInstance.setLevel(level, {anchor: cluster.getCenter()});
-        });
-        
-        // 클러스터러에 추가할 마커 배열
-        let clusterMarkers = [];
-        
-        stores.forEach((store, index) => {
-            // 매장 정보 가져오기
-            const storeName = fieldMapping.name ? store[fieldMapping.name] || '이름 없음' : '이름 없음';
-            const address = fieldMapping.address ? store[fieldMapping.address] || '' : '';
-            const detailAddress = fieldMapping.detailAddress ? store[fieldMapping.detailAddress] || '' : '';
-            const category = fieldMapping.category ? store[fieldMapping.category] || '' : '';
-            const licenseDate = fieldMapping.licenseDate ? store[fieldMapping.licenseDate] || '' : '';
-            
-            // 위도/경도 가져오기
-            const lat = fieldMapping.lat ? store[fieldMapping.lat] : null;
-            const lng = fieldMapping.lng ? store[fieldMapping.lng] : null;
-            
-            console.log(`데이터 확인 [${index}]: ${storeName}, 위도=${lat}, 경도=${lng}`);
-            
-            // 위도/경도가 있고 유효하면 사용
-            if (lat !== undefined && lng !== undefined && lat !== null && lng !== null) {
-                // 숫자가 아닌 경우 변환
-                const numLat = typeof lat === 'string' ? parseFloat(lat.replace(',', '.')) : lat;
-                const numLng = typeof lng === 'string' ? parseFloat(lng.replace(',', '.')) : lng;
-                
-                console.log(`좌표 확인 [${index}]: ${storeName}, (${numLat}, ${numLng})`);
-                
-                if (!isNaN(numLat) && !isNaN(numLng) && numLat !== 0 && numLng !== 0) {
-                    validLocations++;
-                    console.log(`유효한 좌표 [${index}]: ${storeName}, (${numLat}, ${numLng})`);
-                    
-                    const coords = new kakao.maps.LatLng(numLat, numLng);
-                    
-                    // 마커 생성 - map 속성을 제거하여 지도에 직접 표시하지 않음
-                    const marker = new kakao.maps.Marker({
-                        position: coords
-                    });
-                    
-                    // 클러스터에 추가할 마커 배열에 마커 추가
-                    clusterMarkers.push(marker);
-                    
-                    // 정보창 내용 생성
-                    let content = `<div style="padding:10px;font-size:12px;width:250px;line-height:1.5;">`;
-                    content += `<strong style="font-size:14px;display:block;margin-bottom:5px;">${storeName}</strong>`;
-                    
-                    // 디버깅용 - 실제 필드명과 값 확인
-                    console.log(`[정보창 생성] ${storeName}:`, {
-                        '기본주소 필드': fieldMapping.address,
-                        '기본주소 값': address,
-                        '상세주소 필드': fieldMapping.detailAddress,
-                        '상세주소 값': detailAddress
-                    });
-                    
-                    // 주소 정보 추가 - 더 엄격한 체크
-                    let addressDisplayed = false;
-                    
-                    // 기본주소가 있으면 표시
-                    if (address && address.trim() !== '') {
-                        content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">기본주소:</span> ${address}</div>`;
-                        addressDisplayed = true;
-                    }
-                    
-                    // 상세주소가 있고 기본주소와 완전히 다른 경우에만 표시
-                    if (detailAddress && detailAddress.trim() !== '') {
-                        // 기본주소가 없거나, 상세주소가 기본주소와 완전히 다른 경우에만 표시
-                        if (!addressDisplayed || (address !== detailAddress && !address.includes(detailAddress) && !detailAddress.includes(address))) {
-                            content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">상세주소:</span> ${detailAddress}</div>`;
-                        }
-                    }
-                    
-                    // 업태구분명 정보 추가
-                    if (category && category.trim() !== '') {
-                        content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">업태:</span> ${category}</div>`;
-                    }
-                    
-                    // 인허가일자 정보 추가
-                    if (licenseDate && licenseDate.trim() !== '') {
-                        // 날짜 형식 정리
-                        let formattedDate = licenseDate;
-                        if (licenseDate.includes('-') || licenseDate.includes('/')) {
-                            // 이미 형식화된 날짜는 그대로 표시
-                            formattedDate = licenseDate;
-                        } else if (licenseDate.length === 8) {
-                            // YYYYMMDD 형식을 YYYY-MM-DD로 변환
-                            formattedDate = licenseDate.substring(0, 4) + '-' + 
-                                            licenseDate.substring(4, 6) + '-' + 
-                                            licenseDate.substring(6, 8);
-                        }
-                        content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">인허가일자:</span> ${formattedDate}</div>`;
-                    }
-                    
-                    // 위도/경도 정보 추가
-                    content += `<div style="font-size:11px;color:#999;margin-top:5px;">위도: ${numLat.toFixed(6)}, 경도: ${numLng.toFixed(6)}</div>`;
-                    content += `</div>`;
-                    
-                    const infowindow = new kakao.maps.InfoWindow({
-                        content: content
-                    });
-                    
-                    // 마커 클릭 이벤트
-                    kakao.maps.event.addListener(marker, 'click', function() {
-                        // 다른 모든 인포윈도우 닫기
-                        markers.forEach(m => {
-                            if (m.infowindow) m.infowindow.close();
-                        });
-                        infowindow.open(mapInstance, marker);
-                    });
-                    
-                    // 마커 저장
-                    markers.push({
-                        marker: marker,
-                        infowindow: infowindow,
-                        coords: coords,
-                        index: index
-                    });
-                    
-                    // 지도 범위 확장
-                    bounds.extend(coords);
-                } else {
-                    console.log(`유효하지 않은 좌표 [${index}]: ${storeName}, (${numLat}, ${numLng})`);
-                }
+        ]
+    });
+    
+    // 전역 참조를 위한 저장
+    window.currentClusterer = clusterer;
+    
+    // 클러스터 클릭 이벤트
+    kakao.maps.event.addListener(clusterer, 'clusterclick', function(cluster) {
+        const level = mapInstance.getLevel() - 1;
+        mapInstance.setLevel(level, {anchor: cluster.getCenter()});
+    });
+    
+    // 클러스터러에 추가할 마커 배열
+    let clusterMarkers = [];
+    
+    // 주소를 좌표로 변환하는 함수
+    function geocodeAddress(address, callback) {
+        geocoder.addressSearch(address, function(result, status) {
+            // 정상적으로 검색이 완료됐으면 
+            if (status === kakao.maps.services.Status.OK) {
+                callback({
+                    lat: parseFloat(result[0].y), // 위도
+                    lng: parseFloat(result[0].x)  // 경도
+                });
             } else {
-                console.log(`좌표 누락 [${index}]: ${storeName}`);
+                // 주소 검색 실패
+                callback(null);
             }
         });
+    }
+    
+    // 마커 생성 함수
+    function createMarker(lat, lng, storeName, address, detailAddress, category, licenseDate, index) {
+        validLocations++;
+        console.log(`유효한 좌표 [${index}]: ${storeName}, (${lat}, ${lng})`);
         
-        // 클러스터러에 마커 추가 - forEach 루프 밖에서 한 번만 실행
-        if (clusterMarkers.length > 0) {
-            clusterer.addMarkers(clusterMarkers);
-            console.log(`클러스터러에 ${clusterMarkers.length}개의 마커 추가됨`);
+        const coords = new kakao.maps.LatLng(lat, lng);
+        
+        // 마커 생성
+        const marker = new kakao.maps.Marker({
+            position: coords
+        });
+        
+        // 클러스터에 추가할 마커 배열에 마커 추가
+        clusterMarkers.push(marker);
+        
+        // 정보창 내용 생성
+        let content = `<div style="padding:10px;font-size:12px;width:250px;line-height:1.5;">`;
+        content += `<strong style="font-size:14px;display:block;margin-bottom:5px;">${storeName}</strong>`;
+        
+        // 디버깅용 - 실제 필드명과 값 확인
+        console.log(`[정보창 생성] ${storeName}:`, {
+            '기본주소 필드': fieldMapping.address,
+            '기본주소 값': address,
+            '상세주소 필드': fieldMapping.detailAddress,
+            '상세주소 값': detailAddress
+        });
+        
+        // 주소 정보 추가 - 더 엄격한 체크
+        let addressDisplayed = false;
+        
+        // 기본주소가 있으면 표시
+        if (address && address.trim() !== '') {
+            content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">기본주소:</span> ${address}</div>`;
+            addressDisplayed = true;
         }
         
-        document.getElementById('loading').style.display = 'none';
-        
-        // 결과 처리
-        if (validLocations > 0) {
-            console.log(`처리 완료: ${validLocations}개 위치 표시됨`);
-            
-            // 모든 마커가 보이도록 지도 범위 설정
-            if (markers.length > 1) {
-                mapInstance.setBounds(bounds);
-            } else if (markers.length === 1) {
-                mapInstance.setCenter(markers[0].coords);
-                mapInstance.setLevel(3);
+        // 상세주소가 있고 기본주소와 완전히 다른 경우에만 표시
+        if (detailAddress && detailAddress.trim() !== '') {
+            // 기본주소가 없거나, 상세주소가 기본주소와 완전히 다른 경우에만 표시
+            if (!addressDisplayed || (address !== detailAddress && !address.includes(detailAddress) && !detailAddress.includes(address))) {
+                content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">상세주소:</span> ${detailAddress}</div>`;
             }
+        }
+        
+        // 업태구분명 정보 추가
+        if (category && category.trim() !== '') {
+            content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">업태:</span> ${category}</div>`;
+        }
+        
+        // 인허가일자 정보 추가
+        if (licenseDate && licenseDate.trim() !== '') {
+            // 날짜 형식 정리
+            let formattedDate = licenseDate;
+            if (licenseDate.includes('-') || licenseDate.includes('/')) {
+                // 이미 형식화된 날짜는 그대로 표시
+                formattedDate = licenseDate;
+            } else if (licenseDate.length === 8) {
+                // YYYYMMDD 형식을 YYYY-MM-DD로 변환
+                formattedDate = licenseDate.substring(0, 4) + '-' + 
+                                licenseDate.substring(4, 6) + '-' + 
+                                licenseDate.substring(6, 8);
+            }
+            content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">인허가일자:</span> ${formattedDate}</div>`;
+        }
+        
+        // 위도/경도 정보 추가
+        content += `<div style="font-size:11px;color:#999;margin-top:5px;">위도: ${lat.toFixed(6)}, 경도: ${lng.toFixed(6)}</div>`;
+        content += `</div>`;
+        
+        const infowindow = new kakao.maps.InfoWindow({
+            content: content
+        });
+        
+        // 마커 클릭 이벤트
+        kakao.maps.event.addListener(marker, 'click', function() {
+            // 다른 모든 인포윈도우 닫기
+            markers.forEach(m => {
+                if (m.infowindow) m.infowindow.close();
+            });
+            infowindow.open(mapInstance, marker);
+        });
+        
+        // 마커 저장
+        markers.push({
+            marker: marker,
+            infowindow: infowindow,
+            coords: coords,
+            index: index
+        });
+        
+        // 지도 범위 확장
+        bounds.extend(coords);
+    }
+    
+    // 주소 변환 및 마커 생성 함수
+    function processAddressAndCreateMarker(store, index) {
+        // 매장 정보 가져오기
+        const storeName = fieldMapping.name ? store[fieldMapping.name] || '이름 없음' : '이름 없음';
+        const address = fieldMapping.address ? store[fieldMapping.address] || '' : '';
+        const detailAddress = fieldMapping.detailAddress ? store[fieldMapping.detailAddress] || '' : '';
+        const category = fieldMapping.category ? store[fieldMapping.category] || '' : '';
+        const licenseDate = fieldMapping.licenseDate ? store[fieldMapping.licenseDate] || '' : '';
+        
+        // 위도/경도 가져오기
+        const lat = fieldMapping.lat ? store[fieldMapping.lat] : null;
+        const lng = fieldMapping.lng ? store[fieldMapping.lng] : null;
+        
+        console.log(`데이터 확인 [${index}]: ${storeName}, 위도=${lat}, 경도=${lng}`);
+        
+        // 위도/경도가 있고 유효하면 사용
+        if (lat !== undefined && lng !== undefined && lat !== null && lng !== null) {
+            // 숫자가 아닌 경우 변환
+            const numLat = typeof lat === 'string' ? parseFloat(lat.replace(',', '.')) : lat;
+            const numLng = typeof lng === 'string' ? parseFloat(lng.replace(',', '.')) : lng;
+            
+            if (!isNaN(numLat) && !isNaN(numLng) && numLat !== 0 && numLng !== 0) {
+                // 유효한 좌표가 있으면 마커 생성
+                createMarker(numLat, numLng, storeName, address, detailAddress, category, licenseDate, index);
+                processedCount++;
+                checkAllProcessed(); // 모든 처리가 완료되었는지 확인
+            } else if (address && address.trim() !== '') {
+                // 좌표가 유효하지 않지만 주소가 있는 경우, 주소를 좌표로 변환
+                geocodeAddress(address, function(coords) {
+                    if (coords) {
+                        createMarker(coords.lat, coords.lng, storeName, address, detailAddress, category, licenseDate, index);
+                    } else {
+                        console.log(`주소 변환 실패 [${index}]: ${storeName}, 주소=${address}`);
+                    }
+                    processedCount++;
+                    checkAllProcessed(); // 모든 처리가 완료되었는지 확인
+                });
+            } else {
+                console.log(`유효하지 않은 좌표 [${index}]: ${storeName}, (${numLat}, ${numLng})`);
+                processedCount++;
+                checkAllProcessed(); // 모든 처리가 완료되었는지 확인
+            }
+        } else if (address && address.trim() !== '') {
+            // 좌표가 없지만 주소가 있는 경우, 주소를 좌표로 변환
+            geocodeAddress(address, function(coords) {
+                if (coords) {
+                    createMarker(coords.lat, coords.lng, storeName, address, detailAddress, category, licenseDate, index);
+                } else {
+                    console.log(`주소 변환 실패 [${index}]: ${storeName}, 주소=${address}`);
+                }
+                processedCount++;
+                checkAllProcessed(); // 모든 처리가 완료되었는지 확인
+            });
         } else {
-            alert('지도에 표시할 유효한 위치 정보가 없습니다.\n\n다음 사항을 확인해주세요:\n1. CSV 파일에 \'위도(WGS84)\'와 \'경도(WGS84)\' 필드가 있는지 확인\n2. 위도/경도 값이 올바른 숫자 형식인지 확인');
+            console.log(`좌표와 주소 모두 누락 [${index}]: ${storeName}`);
+            processedCount++;
+            checkAllProcessed(); // 모든 처리가 완료되었는지 확인
         }
     }
     
-    // 마커 모두 제거
-    function clearMarkers() {
-        // 클러스터러에서 마커 제거
-        if (window.currentClusterer) {
-            window.currentClusterer.clear();
+    // 모든 처리가 완료되었는지 확인하는 함수
+    function checkAllProcessed() {
+        if (processedCount >= totalCount) {
+            // 모든 주소 처리 완료 후 클러스터러에 마커 추가
+            if (clusterMarkers.length > 0) {
+                clusterer.addMarkers(clusterMarkers);
+                console.log(`클러스터러에 ${clusterMarkers.length}개의 마커 추가됨`);
+            }
+            
+            document.getElementById('loading').style.display = 'none';
+            
+            // 결과 처리
+            if (validLocations > 0) {
+                console.log(`처리 완료: ${validLocations}개 위치 표시됨`);
+                
+                // 모든 마커가 보이도록 지도 범위 설정
+                if (markers.length > 1) {
+                    mapInstance.setBounds(bounds);
+                } else if (markers.length === 1) {
+                    mapInstance.setCenter(markers[0].coords);
+                    mapInstance.setLevel(3);
+                }
+            } else {
+                alert('지도에 표시할 유효한 위치 정보가 없습니다.');
+            }
         }
-        
-        // 기존 마커 제거
-        markers.forEach(markerInfo => {
-            markerInfo.marker.setMap(null);
-        });
-        markers = [];
     }
+    
+    // 각 매장 데이터 처리
+    stores.forEach((store, index) => {
+        processAddressAndCreateMarker(store, index);
+    });
+}
+    
+  // 마커 모두 제거
+function clearMarkers() {
+    // 클러스터러에서 마커 제거
+    if (window.currentClusterer) {
+        window.currentClusterer.clear();
+    }
+    
+    // 기존 마커 제거
+    markers.forEach(markerInfo => {
+        markerInfo.marker.setMap(null);
+    });
+    markers = [];
+}
 })();
     </script>
 </body>
