@@ -684,27 +684,27 @@
                     // 주소 정보 추가 - 더 엄격한 체크
                     let addressDisplayed = false;
                     
-                    // 기본주소가 있으면 표시
-                    if (address && address.trim() !== '') {
+                // 기본주소가 있으면 표시
+                    if (address && typeof address === 'string' && address.trim() !== '') {
                         content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">기본주소:</span> ${address}</div>`;
                         addressDisplayed = true;
                     }
                     
                     // 상세주소가 있고 기본주소와 완전히 다른 경우에만 표시
-                    if (detailAddress && detailAddress.trim() !== '') {
+                        if (detailAddress && typeof detailAddress === 'string' && detailAddress.trim() !== '') {
                         // 기본주소가 없거나, 상세주소가 기본주소와 완전히 다른 경우에만 표시
                         if (!addressDisplayed || (address !== detailAddress && !address.includes(detailAddress) && !detailAddress.includes(address))) {
                             content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">상세주소:</span> ${detailAddress}</div>`;
                         }
                     }
                     
-                    // 업태구분명 정보 추가
-                    if (category && category.trim() !== '') {
+                  // 업태구분명 정보 추가
+                    if (category && typeof category === 'string' && category.trim() !== '') {
                         content += `<div style="font-size:12px;color:#333;margin-bottom:3px;"><span style="color:#666;">업태:</span> ${category}</div>`;
                     }
                     
-                    // 인허가일자 정보 추가
-                    if (licenseDate && licenseDate.trim() !== '') {
+                  // 인허가일자 정보 추가
+                    if (licenseDate && typeof licenseDate === 'string' && licenseDate.trim() !== '') {
                         // 날짜 형식 정리
                         let formattedDate = licenseDate;
                         if (licenseDate.includes('-') || licenseDate.includes('/')) {
